@@ -3,7 +3,7 @@ name = "axbench"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "asyncio>=3.4.3",
     "datasets>=3.0.2",
@@ -23,6 +23,9 @@ dependencies = [
     "altair>=5.5.0",
     "umap-learn>=0.5.7",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["axbench"]
 
 [build-system]
 requires = ["hatchling"]

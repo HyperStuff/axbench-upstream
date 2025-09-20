@@ -98,20 +98,25 @@ class HyperSteer(Model):
         intervention_type = kwargs.get("intervention_type", "addition")
         
         # Get model_params for additional configuration
-        model_params = kwargs.get("model_params", {})
+        model_params = kwargs.get("model_params", None)
+        
+        # Helper function to get parameter value from model_params or kwargs
+        def get_param(param_name, default_value):
+            if model_params and hasattr(model_params, param_name):
+                return getattr(model_params, param_name)
+            return kwargs.get(param_name, default_value)
         
         if intervention_type == "addition":
             ax = SimpleAdditionIntervention(
                 embed_dim=self.model.config.hidden_size, 
-                low_rank_dimension=kwargs.get("low_rank_dimension", 1),
-                use_selection_head=getattr(model_params, "use_selection_head", kwargs.get("use_selection_head", False)),
-                use_ln=getattr(model_params, "use_ln", kwargs.get("use_ln", True)),
-                selection_head_start_temperature=getattr(model_params, "selection_head_start_temperature", kwargs.get("selection_head_start_temperature", 1.0)),
-                selection_head_end_temperature=getattr(model_params, "selection_head_end_temperature", kwargs.get("selection_head_end_temperature", 0.1)),
-                selection_head_learnable_temperature=getattr(model_params, "selection_head_learnable_temperature", kwargs.get("selection_head_learnable_temperature", False)),
-                selection_head_add_gumbel_noise=getattr(model_params, "selection_head_add_gumbel_noise", kwargs.get("selection_head_add_gumbel_noise", False)),
-                selection_head_threshold=getattr(model_params, "selection_head_threshold", kwargs.get("selection_head_threshold", 0.5)),
-                selection_head_straight_through=getattr(model_params, "selection_head_straight_through", kwargs.get("selection_head_straight_through", True)),
+                low_rank_dimension=get_param("low_rank_dimension", 1),
+                use_selection_head=get_param("use_selection_head", False),
+                use_ln=get_param("use_ln", True),
+                selection_head_start_temperature=get_param("selection_head_start_temperature", 1.0),
+                selection_head_end_temperature=get_param("selection_head_end_temperature", 0.1),
+                selection_head_learnable_temperature=get_param("selection_head_learnable_temperature", False),
+                selection_head_add_gumbel_noise=get_param("selection_head_add_gumbel_noise", False),
+                selection_head_straight_through=get_param("selection_head_straight_through", True),
             )
         else:
             raise NotImplementedError(f"{intervention_type} not implemented for CrossAttnHyperReFT in {mode} mode.")
@@ -419,8 +424,12 @@ class HyperSteer(Model):
         self.ax.eval()
         
         return_vector = kwargs.get("return_vector", False)
-        
-        rank = torch.distributed.get_rank()
+
+        if dist.is_initialized():
+            rank = dist.get_rank()
+        else:
+            rank = 0
+
         # set tokenizer padding to left
         self.tokenizer.padding_side = "left"
         # depending on the model, we use different concept id columns

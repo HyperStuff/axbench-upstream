@@ -80,6 +80,13 @@ class ModelParams:
     hypernet_name_or_path: Optional[str] = None
     hypernet_initialize_from_pretrained: Optional[bool] = True
     num_hidden_layers: Optional[int] = None
+    use_selection_head: Optional[bool] = False
+    use_ln: Optional[bool] = True
+    selection_head_start_temperature: Optional[float] = 1.0
+    selection_head_end_temperature: Optional[float] = 0.1
+    selection_head_learnable_temperature: Optional[bool] = False
+    selection_head_add_gumbel_noise: Optional[bool] = False
+    selection_head_straight_through: Optional[bool] = True
 
 class TrainingArgs:
     def __init__(
@@ -126,7 +133,10 @@ class TrainingArgs:
             'train_on_negative', 'use_synergy', 'bow_penalty', 'bow_C', 'loss_type', 'beta', 'gemma', 
             'reference_free', 'label_smoothing', 'steering_factors', 'negative_only', 'simpo_scaler', 
             'intervention_positions_dropout', 'dropout', 'preference_pairs', 'steering_prompt_type',
-            'hypernet_name_or_path', 'hypernet_initialize_from_pretrained', "num_hidden_layers"
+            'hypernet_name_or_path', 'hypernet_initialize_from_pretrained', "num_hidden_layers",
+            "use_selection_head", "use_ln", "selection_head_start_temperature", "selection_head_end_temperature",
+            "selection_head_learnable_temperature", "selection_head_add_gumbel_noise",
+            "selection_head_straight_through"
         ]
         all_params = global_params + hierarchical_params
 

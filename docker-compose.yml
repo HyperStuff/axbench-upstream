@@ -1,0 +1,40 @@
+services:
+  axbench-upstream:
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION}
+        GIT_NAME: ${GIT_NAME}
+        GIT_EMAIL: ${GIT_EMAIL}
+        PROJECT_NAME: ${PROJECT_NAME}
+        VARIANT: ${VARIANT}
+    image: ${CONTAINER_NAME}:latest
+    container_name: ${CONTAINER_NAME}
+    hostname: ${CONTAINER_NAME}
+    working_dir: /workspace/${PROJECT_NAME}
+    network_mode: host  # Use host networking
+    volumes:
+      - .:/workspace/${PROJECT_NAME}
+      - ~/.config/rclone:/root/.config/rclone
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/ray_lockfiles:/root/ray_lockfiles
+      - type: bind
+        source: ~/.ssh
+        target: /root/.ssh
+    environment:
+      - CONTAINER_ID=${CONTAINER_NAME}
+      - RAY_HEAD_ADDRESS=localhost:6379
+      # No need for port mapping with host networking
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

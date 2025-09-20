@@ -41,7 +41,6 @@ train:
       selection_head_end_temperature: 0.1
       selection_head_learnable_temperature: false
       selection_head_add_gumbel_noise: true
-      selection_head_threshold: 0.6
       selection_head_straight_through: true
 
 inference:

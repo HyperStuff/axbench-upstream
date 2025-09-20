@@ -1,13 +1,16 @@
-import torch, random, math
-from torch import nn
+import math
+import random
+
+import torch
 from pyvene import (
-    SourcelessIntervention,
-    TrainableIntervention,
-    DistributedRepresentationIntervention,
     CollectIntervention,
+    DistributedRepresentationIntervention,
     InterventionOutput,
     SigmoidMaskIntervention,
+    SourcelessIntervention,
+    TrainableIntervention,
 )
+from torch import nn
 from torch.nn import functional as F
 
 
@@ -98,7 +101,6 @@ class HyperAdditionIntervention(
                     "selection_head_learnable_temperature", False
                 ),
                 add_gumbel_noise=kwargs.get("selection_head_add_gumbel_noise", False),
-                threshold=kwargs.get("selection_head_threshold", 0.5),
                 straight_through=kwargs.get("selection_head_straight_through", True),
             )
     
@@ -167,12 +169,13 @@ class SelectionHead(nn.Module):
         add_gumbel_noise: bool = False,
         threshold: float = 0.5,
         straight_through: bool = True,
+        dtype: torch.dtype = torch.bfloat16
     ):
         super().__init__()
-        self.proj = nn.Linear(hidden_size * 2, 1)
+        self.proj = nn.Linear(hidden_size * 2, 1, dtype=dtype)
         self.ln = None
         if use_ln:
-            self.ln = nn.LayerNorm((hidden_size * 2,))
+            self.ln = nn.LayerNorm((hidden_size * 2,), dtype=dtype)
 
         self.start_temperature = start_temperature
         self.end_temperature = end_temperature
@@ -182,7 +185,7 @@ class SelectionHead(nn.Module):
             "_step", torch.tensor(0, dtype=torch.int32, requires_grad=False)
         )
         self._temperature = nn.Parameter(
-            torch.tensor(start_temperature, requires_grad=self.learnable_temperature)
+            torch.tensor(start_temperature, requires_grad=self.learnable_temperature, dtype=dtype)
         )
         self.threshold = threshold
         self.straight_through = straight_through
@@ -207,6 +210,7 @@ class SelectionHead(nn.Module):
         # latent vector x: bs, s, h
         # steering vector v: bs, 1, h
         latent = torch.cat([x, v.unsqueeze(1).expand_as(x)], dim=-1)
+
         if self.ln:
             latent = self.ln(latent)
 
@@ -232,8 +236,6 @@ class SelectionHead(nn.Module):
             out = (out > self.threshold).to(out.dtype) + out - out.detach()
         elif hard_mask:
             out = (out > self.threshold).to(out.dtype)
-
-        breakpoint()
         return out
 
 
@@ -261,8 +263,8 @@ class SimpleAdditionIntervention(
                     "selection_head_learnable_temperature", False
                 ),
                 add_gumbel_noise=kwargs.get("selection_head_add_gumbel_noise", False),
-                threshold=kwargs.get("selection_head_threshold", 0.5),
                 straight_through=kwargs.get("selection_head_straight_through", True),
+                dtype=kwargs.get("dtype", torch.bfloat16)
             )
     
     def _update_v(self, new_vect: torch.Tensor):

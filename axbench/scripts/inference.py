@@ -242,7 +242,8 @@ def infer_steering(args, rank, world_size, device, logger, training_args, genera
     if len(my_concept_ids) == 0:
 
         # Synchronize all processes
-        dist.barrier()
+        if dist.is_initialized():
+            dist.barrier()
 
         # Rank 0 merges results
         if rank == 0:
@@ -480,7 +481,8 @@ def infer_steering(args, rank, world_size, device, logger, training_args, genera
         save_state(overwrite_inference_dump_dir, current_state, 'steering', rank)
 
     # Synchronize all processes
-    dist.barrier()
+    if dist.is_initialized():
+        dist.barrier()
 
     # Rank 0 merges results
     if rank == 0:
@@ -679,7 +681,8 @@ def infer_latent(args, rank, world_size, device, logger, training_args, generate
         save_state(args.dump_dir, current_state, 'latent', rank)
 
     # Synchronize all processes
-    dist.barrier()
+    if dist.is_initialized():
+        dist.barrier()
 
     # Rank 0 merges results
     if rank == 0:
@@ -1047,7 +1050,8 @@ def infer_latent_on_train_data(args, rank, world_size, device, logger, training_
                 all_results[model_name] = {}
 
     # Synchronize all processes
-    dist.barrier()
+    if dist.is_initialized():
+        dist.barrier()
 
     # Rank 0 merges results
     if rank == 0:
@@ -1079,18 +1083,27 @@ def main():
     set_seed(inference_args.seed)
 
     # Initialize the process group
-    dist.init_process_group(backend='nccl', init_method='env://', 
-                          timeout=datetime.timedelta(seconds=60000))
+    if dist.is_initialized():
+        dist.init_process_group(backend='nccl', init_method='env://', 
+                            timeout=datetime.timedelta(seconds=60000))
 
 
     # Get the rank and world_size from environment variables
-    rank = dist.get_rank()
-    world_size = dist.get_world_size()
-    local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    if dist.is_initialized():
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    else:
+        rank = 0
+        world_size = 1
+        local_rank = 0
 
     # Set the device for this process
-    device = torch.device(f'cuda:{local_rank}')
-    torch.cuda.set_device(device)
+    if dist.is_initialized():
+        device = torch.device(f'cuda:{local_rank}')
+        torch.cuda.set_device(device)
+    else:
+        device = torch.device('cuda:0')
 
     # Configure the logger per rank
     logger.setLevel(logging.WARNING)  # Set the logging level as desired
@@ -1136,7 +1149,8 @@ def main():
         infer_steering(inference_args, rank, world_size, device, logger, training_args, generate_args, suppress_eval_dir=suppress_eval_dir)
 
     # Finalize the process group
-    dist.destroy_process_group()
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
     # Remove handlers to prevent duplication if the script is run multiple times
     logger.removeHandler(console_handler)
