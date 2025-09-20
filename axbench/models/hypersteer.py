@@ -87,7 +87,7 @@ def partition_df(df, n):
     
     return partitions
 
-    
+
 class HyperSteer(Model):
     """HyperSteer with Cross-Attention"""
     def __str__(self):
@@ -96,10 +96,22 @@ class HyperSteer(Model):
     def make_model(self, **kwargs):
         mode = kwargs.get("mode", "latent")        
         intervention_type = kwargs.get("intervention_type", "addition")
+        
+        # Get model_params for additional configuration
+        model_params = kwargs.get("model_params", {})
+        
         if intervention_type == "addition":
             ax = SimpleAdditionIntervention(
                 embed_dim=self.model.config.hidden_size, 
                 low_rank_dimension=kwargs.get("low_rank_dimension", 1),
+                use_selection_head=getattr(model_params, "use_selection_head", kwargs.get("use_selection_head", False)),
+                use_ln=getattr(model_params, "use_ln", kwargs.get("use_ln", True)),
+                selection_head_start_temperature=getattr(model_params, "selection_head_start_temperature", kwargs.get("selection_head_start_temperature", 1.0)),
+                selection_head_end_temperature=getattr(model_params, "selection_head_end_temperature", kwargs.get("selection_head_end_temperature", 0.1)),
+                selection_head_learnable_temperature=getattr(model_params, "selection_head_learnable_temperature", kwargs.get("selection_head_learnable_temperature", False)),
+                selection_head_add_gumbel_noise=getattr(model_params, "selection_head_add_gumbel_noise", kwargs.get("selection_head_add_gumbel_noise", False)),
+                selection_head_threshold=getattr(model_params, "selection_head_threshold", kwargs.get("selection_head_threshold", 0.5)),
+                selection_head_straight_through=getattr(model_params, "selection_head_straight_through", kwargs.get("selection_head_straight_through", True)),
             )
         else:
             raise NotImplementedError(f"{intervention_type} not implemented for CrossAttnHyperReFT in {mode} mode.")
@@ -174,16 +186,21 @@ class HyperSteer(Model):
         return model
 
     def train(self, examples, **kwargs):
-        
-        rank = torch.distributed.get_rank()
-        world_size = kwargs.get("world_size", 1)
+
+        if dist.is_initialized():
+            rank = dist.get_rank()
+            world_size = dist.get_world_size()
+        else:
+            rank = 0
+            world_size = 1
                  
         train_dataloader, train_sampler = self.make_dataloader(
             examples, rank=rank, concept_tokenizer=self.hypernet_tokenizer,
             distributed=True, **kwargs
         )
-                        
-        torch.cuda.empty_cache()
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         
         embedding_model = self.concept_embedding if world_size == 1 else DDP(self.concept_embedding, device_ids=[rank], find_unused_parameters=True)
         
@@ -464,10 +481,17 @@ class HyperSteer(Model):
 
             self.ax._update_v(v)
                     
+            subspace_dict = {
+                "idx": idx, 
+                "mag": mag, 
+                "prefix_length": kwargs["prefix_length"],
+                "inference_binarize_mask": kwargs.get("inference_binarize_mask", False)
+            }
+            
             _, generations = self.ax_model.generate(
                 inputs, 
                 unit_locations=None, intervene_on_prompt=True, 
-                subspaces=[{"idx": idx, "mag": mag, "prefix_length": kwargs["prefix_length"]}] * self.num_of_layers,
+                subspaces=[subspace_dict] * self.num_of_layers,
                 max_new_tokens=eval_output_length, do_sample=True, 
                 temperature=temperature,
             )

@@ -313,17 +313,25 @@ def main():
     generate_args = DatasetArgs(section="generate")
 
     # Initialize the process group
-    dist.init_process_group(backend='nccl', init_method='env://', 
-                          timeout=datetime.timedelta(seconds=6000))
+    if dist.is_initialized():
+        dist.init_process_group(backend='nccl', init_method='env://', 
+                            timeout=datetime.timedelta(seconds=6000))
 
     # Get the rank and world_size from environment variables
-    rank = dist.get_rank()
-    world_size = dist.get_world_size()
+    if dist.is_initialized():
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+    else:
+        rank = 0
+        world_size = 1
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
 
     # Set the device for this process
-    device = torch.device(f'cuda:{local_rank}')
-    torch.cuda.set_device(device)
+    if torch.cuda.is_available():
+        device = torch.device(f'cuda:{local_rank}')
+        torch.cuda.set_device(device)
+    else:
+        device = torch.get_default_device()
 
     # Set a unique seed per rank for reproducibility
     set_seed(args.seed + rank)
@@ -520,13 +528,15 @@ def main():
         save_state(dump_dir, current_state, metadata[concept_id], rank)
 
     # Synchronize all processes
-    dist.barrier()
+    if dist.is_initialized():
+        dist.barrier()
     
     if "HyperSteer" in args.models.keys():
         train_hypersteer(args, generate_args, model_instance, tokenizer, all_df, metadata, dump_dir, rank, device, local_rank, world_size)
     
     # Synchronize all processes 
-    dist.barrier()
+    if dist.is_initialized():
+        dist.barrier()
 
     # Rank 0 merges results
     if rank == 0:
@@ -652,7 +662,8 @@ def main():
                     logger.error(f"Error deleting file {f.name}: {e}")
 
     # Finalize the process group
-    dist.destroy_process_group()
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
     # Remove handlers to prevent duplication if the script is run multiple times
     logger.removeHandler(console_handler)
