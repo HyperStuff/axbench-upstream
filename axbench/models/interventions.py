@@ -12,6 +12,19 @@ from pyvene import (
 )
 from torch import nn
 from torch.nn import functional as F
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass
+class PayloadInterventionOutput(InterventionOutput):
+    """
+    Output of the IntervenableModel, including original outputs, intervened outputs, and collected activations.
+    """
+
+    output: Any | None = None
+    latent: Any | None = None
+    payload: Any | None = None
 
 
 class LowRankRotateLayer(torch.nn.Module):
@@ -240,17 +253,16 @@ class SelectionHead(nn.Module):
 
 
 class SimpleAdditionIntervention(
-    SourcelessIntervention,
-    TrainableIntervention, 
-    DistributedRepresentationIntervention
+    SourcelessIntervention, TrainableIntervention, DistributedRepresentationIntervention
 ):
     """
     Phi(h) = h + Mean(TopK(ReLU(h@v)))*v
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs, keep_last_dim=True)
         self.low_rank_dimension = kwargs["low_rank_dimension"]
-        self.v : torch.Tensor = None
+        self.v: torch.Tensor = None
         self.use_selection = kwargs.get("use_selection_head", False)
 
         if self.use_selection:
@@ -264,40 +276,46 @@ class SimpleAdditionIntervention(
                 ),
                 add_gumbel_noise=kwargs.get("selection_head_add_gumbel_noise", False),
                 straight_through=kwargs.get("selection_head_straight_through", True),
-                dtype=kwargs.get("dtype", torch.bfloat16)
+                dtype=kwargs.get("dtype", torch.bfloat16),
             )
-    
+
     def _update_v(self, new_vect: torch.Tensor):
         self.v = new_vect
-        
+
     def _reset_v(self):
         self.v = None
 
-    def forward(
-        self, base, source=None, subspaces=None
-    ):
+    def forward(self, base, source=None, subspaces=None):
         assert self.v is not None, "v is not set. Please set v before calling forward."
         assert self.v.shape == (base.shape[0], self.embed_dim), "v shape mismatch."
-        steering_vec = self.v.unsqueeze(dim=1) # bs, 1, h
+        steering_vec = self.v.unsqueeze(dim=1)  # bs, 1, h
         if subspaces:
             if "mag" in subspaces.keys():
                 # If a scaler magnitude is provided, scale the steering vector
-                steering_vec = subspaces["mag"].unsqueeze(-1).unsqueeze(-1) * steering_vec  
-        
-        threshold = subspaces.get("inference_binarize_mask", False) if subspaces else False
+                steering_vec = (
+                    subspaces["mag"].unsqueeze(-1).unsqueeze(-1) * steering_vec
+                )
+
+        threshold = (
+            subspaces.get("inference_binarize_mask", False) if subspaces else False
+        )
         mask = (
             self.selection_head(base, self.v, hard_mask=threshold)
             if self.use_selection
             else 1
         )
-        
+
         # addition intervention
         output = base + steering_vec * mask
 
-        return InterventionOutput(
-            output=output.to(base.dtype)
-        )
-        
+        if self.use_selection:
+            return PayloadInterventionOutput(
+                output=output.to(base.dtype), payload={"mask": mask}
+            )
+        else:
+            return InterventionOutput(output=output.to(base.dtype))
+
+
 class TopKReLUIntervention(
     SourcelessIntervention,
     TrainableIntervention, 

@@ -87,6 +87,7 @@ class ModelParams:
     selection_head_learnable_temperature: Optional[bool] = False
     selection_head_add_gumbel_noise: Optional[bool] = False
     selection_head_straight_through: Optional[bool] = True
+    selection_l1_loss_coeff: Optional[float] = 0.01
 
 class TrainingArgs:
     def __init__(
@@ -136,7 +137,7 @@ class TrainingArgs:
             'hypernet_name_or_path', 'hypernet_initialize_from_pretrained', "num_hidden_layers",
             "use_selection_head", "use_ln", "selection_head_start_temperature", "selection_head_end_temperature",
             "selection_head_learnable_temperature", "selection_head_add_gumbel_noise",
-            "selection_head_straight_through"
+            "selection_head_straight_through", "selection_l1_loss_coeff"
         ]
         all_params = global_params + hierarchical_params
 

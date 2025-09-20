@@ -37,11 +37,12 @@ train:
       # SelectionHead parameters
       use_selection_head: true
       use_ln: true
-      selection_head_start_temperature: 2.0
-      selection_head_end_temperature: 0.1
+      selection_head_start_temperature: 0.8
+      selection_head_end_temperature: 0.2
       selection_head_learnable_temperature: false
       selection_head_add_gumbel_noise: true
       selection_head_straight_through: true
+      selection_l1_loss_coeff: 0.5
 
 inference:
   use_bf16: true
