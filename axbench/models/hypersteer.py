@@ -126,6 +126,9 @@ class HyperSteer(Model):
                 selection_head_straight_through=get_param(
                     "selection_head_straight_through", True
                 ),
+                selection_head_anneal_temperature=get_param(
+                    "selection_head_anneal_temperature", False
+                ),
             )
         else:
             raise NotImplementedError(
@@ -366,6 +369,12 @@ class HyperSteer(Model):
                     curr_step += 1
                     losses.append(loss.item())
                     curr_lr = get_lr(optimizer)
+                    
+                    # Update selection head temperature if annealing is enabled
+                    if (hasattr(self.ax, 'use_selection') and self.ax.use_selection and 
+                        hasattr(self.ax, 'anneal_temperature') and self.ax.anneal_temperature):
+                        self.ax.selection_head.step_temperature(num_training_steps)
+                    
                     # optim
                     optimizer.step()
                     lr_scheduler.step()

@@ -87,6 +87,7 @@ class ModelParams:
     selection_head_learnable_temperature: Optional[bool] = False
     selection_head_add_gumbel_noise: Optional[bool] = False
     selection_head_straight_through: Optional[bool] = True
+    selection_head_anneal_temperature: Optional[bool] = False
     selection_l1_loss_coeff: Optional[float] = 0.01
 
 class TrainingArgs:

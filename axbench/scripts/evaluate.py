@@ -401,6 +401,9 @@ def eval_steering_single_task(args_tuple):
             eval_result = evaluator.compute_metrics(current_df)
         return (concept_id, evaluator.__str__(), model_name.__str__(), eval_result, \
                 lm_model.stats.get_report(), None if bool(lm_caches) else lm_model.cache_in_mem, current_df)
+    except Exception as e:
+        logger.error(f"Error in task concept_id={concept_id}, model={model_name}: {str(e)}")
+        raise RuntimeError(f"Task failed: {str(e)}") from None
     finally:
         # Properly close both the HTTP client and async client
         async def cleanup():

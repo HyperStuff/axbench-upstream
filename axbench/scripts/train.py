@@ -532,7 +532,14 @@ def main():
         dist.barrier()
     
     if "HyperSteer" in args.models.keys():
-        train_hypersteer(args, generate_args, model_instance, tokenizer, all_df, metadata, dump_dir, rank, device, local_rank, world_size)
+        # Filter all_df to only include concepts from df_list (respects max_concepts)
+        if args.max_concepts:
+            concept_ids_to_keep = [concept_id for concept_id, _ in df_list]
+            filtered_all_df = all_df[all_df['concept_id'].isin(concept_ids_to_keep)]
+            logger.warning(f"Filtered all_df from {len(all_df)} to {len(filtered_all_df)} rows for HyperSteer training")
+        else:
+            filtered_all_df = all_df
+        train_hypersteer(args, generate_args, model_instance, tokenizer, filtered_all_df, metadata, dump_dir, rank, device, local_rank, world_size)
     
     # Synchronize all processes 
     if dist.is_initialized():

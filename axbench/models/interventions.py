@@ -116,6 +116,7 @@ class HyperAdditionIntervention(
                 add_gumbel_noise=kwargs.get("selection_head_add_gumbel_noise", False),
                 straight_through=kwargs.get("selection_head_straight_through", True),
             )
+            self.anneal_temperature = kwargs.get("selection_head_anneal_temperature", False)
     
     def _update_v(self, new_vect: torch.Tensor):
         self.v = new_vect
@@ -249,6 +250,7 @@ class SelectionHead(nn.Module):
             out = (out > self.threshold).to(out.dtype) + out - out.detach()
         elif hard_mask:
             out = (out > self.threshold).to(out.dtype)
+
         return out
 
 
@@ -278,6 +280,7 @@ class SimpleAdditionIntervention(
                 straight_through=kwargs.get("selection_head_straight_through", True),
                 dtype=kwargs.get("dtype", torch.bfloat16),
             )
+            self.anneal_temperature = kwargs.get("selection_head_anneal_temperature", False)
 
     def _update_v(self, new_vect: torch.Tensor):
         self.v = new_vect
